@@ -12,6 +12,7 @@ import { Resvg } from '@resvg/resvg-js'
 import cliProgress from 'cli-progress'
 import chalk from 'chalk'
 
+
 import blacklist from "./blacklist";
 
 // INTERNAL TYPES
@@ -84,7 +85,7 @@ CATEGORIES.categories.forEach(category => {
 
 ICONS.forEach(icon => {
   ICONMAP[icon.name] = {
-    friendlyName: icon.friendly_name,
+    friendlyName: icon.friendly_name.replaceAll('/', '-'),
     aliases: icon.aliases
   }
 })
@@ -113,9 +114,17 @@ function colorizePlugin(color: string) {
       return {
         element: {
           enter: (node, _parentNode) => {
-            if (node.attributes.fill == 'none') {
-              return;
-            }
+            
+            // Loop through styles
+            node.children.forEach((child) => {
+              if (child.name == 'style') {
+                child.children[0].value = child.children[0].value.replaceAll(/#?([\da-fA-F]{2})([\da-fA-F]{2})([\da-fA-F]{2})/g, color)
+              }
+            })
+
+            if (node.attributes.fill == 'none') return;
+
+            if (node.attributes.id == '_Transparent_Rectangle_') return
   
             node.attributes.fill = color;
           },
@@ -129,24 +138,22 @@ function toSvg(svg: string) {
   const resvg = new Resvg(svg, {
     fitTo: {mode: 'width', value: 1024}
   })
+
   return resvg.render().asPng()
 }
 
 const chalkSignature = chalk.hex('"002346');
 
-console.log(`${chalk.bold('IBM Carbon to DB Library converter')}${chalk.reset()}\n`)
+console.log(`${chalk.bold('\nIBM Carbon to DB Library converter')}${chalk.reset()}\n`)
 
 const progress = new cliProgress.SingleBar({
-  format: `${chalkSignature.bgWhiteBright('{bar}')} | {percentage}% || {value}/{total} icons || ETA: {eta}s | ${chalk.bold.hex('#002346')('{category} / {name}')} `,
+  format: `${chalkSignature.bgWhiteBright('{bar}')} | {percentage}% || {value}/{total} icons || ETA: {eta}s | ${chalk.bold.hex('#002346')('{category} / {name}')}${chalk.reset()} `,
   barCompleteChar: '\u2588',
   barIncompleteChar: '\u2591',
   hideCursor: true
 });
 
-progress.start(Object.keys(REGISTERY).length, 0, {
-  speed: "N/A"
-});
-
+progress.start(Object.keys(REGISTERY).length, 0);
 
 for (const key in REGISTERY) {
  const entry = REGISTERY[key]
@@ -155,16 +162,17 @@ for (const key in REGISTERY) {
  progress.update({category: entry.category, name: entry.friendlyName})
 
  const signature = optimize(entry.svg, {
-  plugins: [colorizePlugin('#002346'), 'preset-default']
+  plugins: [  colorizePlugin("#002346"), 'preset-default', "removeDimensions" ]
  }).data
  const white = optimize(entry.svg, {
-  plugins: [colorizePlugin('#fff'), 'preset-default']
+  plugins: [  colorizePlugin("#fff"), 'preset-default', "removeDimensions" ]
  }).data
 
-outputFileSync(`./output/svg-32/Signature/${entry.category}/${entry.friendlyName}.svg`, signature)
-outputFileSync(`./output/svg-32/White/${entry.category}/${entry.friendlyName}.svg`, white)
-outputFileSync(`./output/png-1024/Signature/${entry.category}/${entry.friendlyName}.png`, toSvg(signature))
-outputFileSync(`./output/png-1024/White/${entry.category}/${entry.friendlyName}.png`, toSvg(white))
+ outputFileSync(`./output/svg-32/Signature/${entry.category}/${entry.friendlyName}.svg`, signature)
+ outputFileSync(`./output/svg-32/White/${entry.category}/${entry.friendlyName}.svg`, white)
+ outputFileSync(`./output/png-1024/Signature/${entry.category}/${entry.friendlyName}.png`, toSvg(signature))
+ outputFileSync(`./output/png-1024/White/${entry.category}/${entry.friendlyName}.png`, toSvg(white))
 }
 
+console.log('\n')
 progress.stop()
